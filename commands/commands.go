@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/einarno/pokedexcli/pokeapi"
+	c "github.com/einarno/pokedexcli/pokecache"
 )
 
 type config struct {
 	offset int
+	cache  *c.Cache
 }
 type cliCommand struct {
 	name        string
@@ -22,7 +25,7 @@ const PROMPT = ">> "
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	io.WriteString(out, "Welcome to the Pokedex!\n")
-	conf := config{offset: 0}
+	conf := config{offset: 0, cache: c.NewCache(10 * time.Minute)}
 	for {
 		fmt.Fprintf(out, PROMPT)
 		scanned := scanner.Scan()
@@ -64,7 +67,7 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 		return nil
 	}
 	commandMap := func(conf *config) error {
-		places, err := pokeapi.GetLocationAreas(conf.offset)
+		places, err := pokeapi.GetLocationAreas(conf.offset, conf.cache)
 		if err != nil {
 			return err
 		}
@@ -81,7 +84,7 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 			io.WriteString(out, "Error: No need to go back when you have not checked out the locations yet\n")
 			return nil
 		}
-		places, err := pokeapi.GetLocationAreas(conf.offset)
+		places, err := pokeapi.GetLocationAreas(conf.offset, conf.cache)
 		if err != nil {
 			return err
 		}
