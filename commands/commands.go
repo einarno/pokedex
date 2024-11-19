@@ -4,20 +4,23 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/einarno/pokedexcli/pokeapi"
 	c "github.com/einarno/pokedexcli/pokecache"
+	"github.com/einarno/pokedexcli/pokedata"
 )
 
 type config struct {
-	offset int
-	cache  *c.Cache
+	offset  int
+	cache   *c.Cache
+	pokemap map[string]pokedata.Pokemon
 }
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(conf *config) error
+	callback    func(conf *config, args []string) error
 }
 
 const PROMPT = ">> "
@@ -25,7 +28,7 @@ const PROMPT = ">> "
 func Start(in io.Reader, out io.Writer) {
 	scanner := bufio.NewScanner(in)
 	io.WriteString(out, "Welcome to the Pokedex!\n")
-	conf := config{offset: 0, cache: c.NewCache(10 * time.Minute)}
+	conf := config{offset: 0, cache: c.NewCache(10 * time.Minute), pokemap: make(map[string]pokedata.Pokemon)}
 	for {
 		fmt.Fprintf(out, PROMPT)
 		scanned := scanner.Scan()
@@ -37,12 +40,19 @@ func Start(in io.Reader, out io.Writer) {
 		if line == "exit" {
 			return
 		}
-		cmdMap := getCliCommands(out)
-		cmd, ok := cmdMap[line]
-		if ok {
-			err := cmd.callback(&conf)
-			if err != nil {
+		// Split input into command and arguments
+		parts := strings.Fields(line)
+		if len(parts) == 0 {
+			continue
+		}
+		cmdName := parts[0]
+		args := parts[1:]
 
+		cmdMap := getCliCommands(out)
+		cmd, ok := cmdMap[cmdName]
+		if ok {
+			err := cmd.callback(&conf, args)
+			if err != nil {
 			}
 		} else {
 			io.WriteString(out, "Woops! looks like you used an unknown command\n")
@@ -52,7 +62,7 @@ func Start(in io.Reader, out io.Writer) {
 
 func getCliCommands(out io.Writer) map[string]cliCommand {
 
-	commandHelp := func(conf *config) error {
+	commandHelp := func(conf *config, _ []string) error {
 		io.WriteString(out, "\nUsage:\n")
 		for _, v := range getCliCommands(out) {
 			commandString := fmt.Sprintf("\n%s: %s\n", v.name, v.description)
@@ -63,11 +73,11 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 	}
 
 	// I want to handle the exit with a gracefull return so this is just  a empty function
-	commandExit := func(conf *config) error {
+	commandExit := func(conf *config, _ []string) error {
 		return nil
 	}
-	commandMap := func(conf *config) error {
-		places, err := pokeapi.GetLocationAreas(conf.offset, conf.cache)
+	commandMap := func(conf *config, _ []string) error {
+		places, err := pokeapi.GetLocationAreas(conf.cache, conf.offset)
 		if err != nil {
 			return err
 		}
@@ -79,12 +89,44 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 		io.WriteString(out, fmt.Sprintf("%d\n", conf.offset))
 		return nil
 	}
-	commandMapb := func(conf *config) error {
+	commandExplore := func(conf *config, args []string) error {
+		areaID := args[0]
+		places, err := pokeapi.ExploreArea(conf.cache, areaID)
+		if err != nil {
+			return err
+		}
+		io.WriteString(out, fmt.Sprintf("Exloring %s\n\nFound pokemon:\n", areaID))
+		for _, place := range places {
+			commandString := fmt.Sprintf("%s\n", place)
+			io.WriteString(out, commandString)
+		}
+		return nil
+	}
+	commandCatch := func(conf *config, args []string) error {
+		pokemonName := args[0]
+		pokemon, err := pokeapi.GetPokemon(pokemonName)
+		if err != nil {
+			return err
+		}
+		io.WriteString(out, fmt.Sprintf("Throwing a Pokeball at %s...\n", pokemonName))
+		isCatched := pokedata.IsCatched(pokemon.BaseExperience)
+		if isCatched {
+			conf.pokemap[pokemonName] = pokemon
+			io.WriteString(out, fmt.Sprintf("Caught %s\n", pokemonName))
+
+		} else {
+			io.WriteString(out, "Failed...\n")
+
+		}
+		return nil
+
+	}
+	commandMapb := func(conf *config, _ []string) error {
 		if conf.offset < 20 {
 			io.WriteString(out, "Error: No need to go back when you have not checked out the locations yet\n")
 			return nil
 		}
-		places, err := pokeapi.GetLocationAreas(conf.offset, conf.cache)
+		places, err := pokeapi.GetLocationAreas(conf.cache, conf.offset)
 		if err != nil {
 			return err
 		}
@@ -116,6 +158,16 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 			name:        "mapb",
 			description: "displays the names of the last 20 location areas",
 			callback:    commandMapb,
+		},
+		"explore": {
+			name:        "explore",
+			description: "Explore the pokemons in a certain area",
+			callback:    commandExplore,
+		},
+		"catch": {
+			name:        "catch",
+			description: "atch pokemon",
+			callback:    commandCatch,
 		},
 	}
 }
