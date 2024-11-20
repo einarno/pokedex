@@ -109,7 +109,7 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 			return err
 		}
 		io.WriteString(out, fmt.Sprintf("Throwing a Pokeball at %s...\n", pokemonName))
-		isCatched := pokedata.IsCatched(pokemon.BaseExperience)
+		isCatched := pokedata.IsCatched(*pokemon.BaseExperience)
 		if isCatched {
 			conf.pokemap[pokemonName] = pokemon
 			io.WriteString(out, fmt.Sprintf("Caught %s\n", pokemonName))
@@ -120,6 +120,25 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 		}
 		return nil
 
+	}
+	commandPokedex := func(conf *config, args []string) error {
+		for _, pokemon := range conf.pokemap {
+			io.WriteString(out, pokemon.Name+"\n")
+		}
+		return nil
+	}
+	commandInspect := func(conf *config, args []string) error {
+		pokemon := conf.pokemap[args[0]]
+		printString := fmt.Sprintf("Name: %s\nHeight: %d\nWeight: %d\nStats:", pokemon.Name, pokemon.Height, pokemon.Weight)
+		for _, stat := range pokemon.Stats {
+			printString += fmt.Sprintf("\n  - %s: %d", stat.Stat.Name, stat.BaseStat)
+		}
+		printString += "\nTypes:"
+		for _, pokemonType := range pokemon.Types {
+			printString += fmt.Sprintf("\n  - %s", pokemonType.Type.Name)
+		}
+		io.WriteString(out, printString+"\n")
+		return nil
 	}
 	commandMapb := func(conf *config, _ []string) error {
 		if conf.offset < 20 {
@@ -166,8 +185,18 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 		},
 		"catch": {
 			name:        "catch",
-			description: "atch pokemon",
+			description: "Catch pokemon",
 			callback:    commandCatch,
+		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "See all pokemon",
+			callback:    commandPokedex,
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "See pokemon details",
+			callback:    commandInspect,
 		},
 	}
 }

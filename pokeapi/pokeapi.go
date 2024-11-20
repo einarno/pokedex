@@ -27,6 +27,7 @@ type LocationArea struct {
 
 func GetPokemon(pokemonName string) (pokedata.Pokemon, error) {
 	url := fmt.Sprintf("https://pokeapi.co/api/v2/pokemon/%s/", pokemonName)
+
 	resp, err := http.Get(url)
 	var pokemon pokedata.Pokemon
 	if err != nil {
