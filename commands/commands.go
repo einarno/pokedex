@@ -128,7 +128,11 @@ func getCliCommands(out io.Writer) map[string]cliCommand {
 		return nil
 	}
 	commandInspect := func(conf *config, args []string) error {
-		pokemon := conf.pokemap[args[0]]
+		pokemon, ok := conf.pokemap[args[0]]
+		if !ok {
+			io.WriteString(out, fmt.Sprintf("%s not caught\n", args[0]))
+			return nil
+		}
 		printString := fmt.Sprintf("Name: %s\nHeight: %d\nWeight: %d\nStats:", pokemon.Name, pokemon.Height, pokemon.Weight)
 		for _, stat := range pokemon.Stats {
 			printString += fmt.Sprintf("\n  - %s: %d", stat.Stat.Name, stat.BaseStat)
